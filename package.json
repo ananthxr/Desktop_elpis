@@ -1,0 +1,17 @@
+{
+  "name": "pixel-desktop-cat",
+  "version": "0.1.0",
+  "description": "Pixel - a cute reactive pixel-art desktop cat that lives on top of your screen and reacts to everything you do.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.2.0"
+  },
+  "dependencies": {
+    "active-win": "^7.0.0",
+    "uiohook-napi": "^1.5.4"
+  }
+}
