@@ -23,7 +23,7 @@ const CLIPS = {
   groom:  { row: 3, c0: 0, n: 4, fps: 6, loop: true },
   meow:   { row: 2, c0: 0, n: 4, fps: 6, loop: true },
   walkR:  { row: 4, c0: 0, n: 8, fps: 10, loop: true },
-  scared: { row: 8, c0: 1, n: 3, fps: 12, loop: true },
+  scared: { row: 8, c0: 1, n: 4, fps: 12, loop: false },
   sleep:  { row: 5, c0: 1, n: 3, fps: 4, loop: false },
 };
 
@@ -71,9 +71,13 @@ const cat = {
   bubble: null, bubbleT: 0,
   groomUntil: 0, idleNext: 4, zT: 0,
   typingUntil: 0, tapPhase: 0, tapSpeed: 6,
+  boing: 0, boingPhase: 0,        // playful scroll bounce
   mood: 0.6, lastActivity: 0,
 };
 let muted = false;
+
+// ball of yarn that pops up and bounces while you scroll
+const yarn = { active: false, x: 0, y: 0, vx: 0, vy: 0, spin: 0, life: 0 };
 
 let interactive = false;
 function setInteractive(v) { if (v === interactive) return; interactive = v; window.catApi.setInteractive(v); }
@@ -152,9 +156,8 @@ window.catApi.onStimulus(({ type, data }) => {
     case 'mousemove': onMove(toLocal(data.x, data.y)); break;
     case 'mousedown': onDown(toLocal(data.x, data.y), data.button); break;
     case 'mouseup': onUp(toLocal(data.x, data.y), data.button); break;
-    case 'scroll': onScroll(); break;
+    case 'scroll': onScroll(data); break;
     case 'type': onType(); break;
-    case 'arrow': onArrow(data.dir); break;
     case 'closewindow': cat.lastActivity = now(); wake(); react('sit', 1.4, { bubble: 'bye~', sound: snd.wave }); break;
     case 'email': cat.lastActivity = now(); wake(); react('meow', 2.4, { hearts: 6, bubble: '\u2709', sound: snd.email }); break;
     case 'poke': cat.lastActivity = now(); wake(); react('meow', 1.0, { hearts: 4, sound: snd.happy }); break;
@@ -174,7 +177,7 @@ function onMove(pt) {
 function onDown(pt, button) {
   wake();
   const onCat = inCat(pt.x, pt.y);
-  if (button === 2) { onCat ? react('meow', 1.0, { hearts: 3, sound: snd.happy }) : react('scared', 0.6, { sound: snd.startled }); return; }
+  if (button === 2) { onCat ? react('meow', 1.0, { hearts: 3, sound: snd.happy }) : react('scared', 0.42, { sound: snd.startled }); return; }
   if (onCat) { pressing = true; dragging = false; pressPos = { x: pt.x, y: pt.y }; dragOff = { x: cat.x - pt.x, y: cat.y - pt.y }; setInteractive(true); }
 }
 function onUp(pt, button) {
@@ -183,13 +186,27 @@ function onUp(pt, button) {
   if (dragging || moved > 6) { cat.home = { x: cat.x, y: cat.y }; cat.mode = 'sit'; }
   else {
     const t = now(); clickStreak = (t - lastClickAt < 0.5) ? clickStreak + 1 : 1; lastClickAt = t;
-    if (clickStreak >= 4) { react('scared', 0.8, { stars: 7, flee: true, sound: snd.bop }); cat.mood = clamp(cat.mood - 0.12, 0, 1); clickStreak = 0; }
+    if (clickStreak >= 4) { react('scared', 0.42, { stars: 7, flee: true, sound: snd.bop }); cat.mood = clamp(cat.mood - 0.12, 0, 1); clickStreak = 0; }
     else { react('meow', 1.0, { hearts: 5, sound: snd.pet }); cat.mood = clamp(cat.mood + 0.07, 0, 1); }
   }
   pressing = false; dragging = false; setInteractive(inCat(pt.x, pt.y));
 }
-function onScroll() {
-  cat.lastActivity = now(); wake();   // just stay awake/alert — no sparks
+function onScroll(d) {
+  cat.lastActivity = now(); wake();
+  if (dragging) return;
+  const up = d && d.dir === 'up';
+  cat.boing = Math.min(1, cat.boing + 0.55);   // playful little bounce
+  cat.idleNext = now() + 3;                     // stay and play, don't wander off
+  if (!yarn.active) {                           // pop a yarn ball out beside the cat
+    yarn.active = true;
+    yarn.x = cat.x + (cat.faceLeft ? -1 : 1) * SW * 0.16;
+    yarn.y = cat.y + SH * 0.10;
+    yarn.vx = (Math.random() - 0.5) * 40;
+    yarn.spin = 0;
+  }
+  yarn.vy = up ? -170 : -110;                   // toss higher when scrolling up
+  yarn.vx += (Math.random() - 0.5) * 60;
+  yarn.life = 0;                                // refresh so it keeps bouncing
 }
 function onType() {
   cat.lastActivity = now(); wake();
@@ -197,12 +214,6 @@ function onType() {
   cat.typingUntil = t + 0.7;          // show the keyboard-typing animation
   typeTimes.push(t); typeTimes = typeTimes.filter((x) => t - x < 1.0);
   cat.tapSpeed = clamp(5 + typeTimes.length * 1.4, 5, 16);   // type faster -> tap faster
-}
-function onArrow(dir) {
-  cat.lastActivity = now(); wake();
-  if (dir !== 'left' && dir !== 'right') return;   // no vertical movement
-  const tx = clamp(cat.x + (dir === 'left' ? -130 : 130), SW / 2, W - SW / 2);
-  cat.target = { x: tx, y: cat.y }; cat.runSpeed = 0; cat.mode = 'walk';
 }
 
 // ---------------------------------------------------------------------------
@@ -237,6 +248,20 @@ function update(dt) {
   const t = now();
   if (cat.bubbleT > 0) cat.bubbleT -= dt;
   if (isTyping()) cat.tapPhase += dt * cat.tapSpeed;
+  if (cat.boing > 0) { cat.boingPhase += dt * 17; cat.boing = Math.max(0, cat.boing - dt * 2.2); }
+
+  // ball of yarn physics: gravity + bounce off the floor near the cat's feet
+  if (yarn.active) {
+    yarn.life += dt;
+    yarn.vy += 560 * dt;
+    yarn.x += yarn.vx * dt; yarn.y += yarn.vy * dt;
+    const fy = cat.y + SH * 0.34;
+    if (yarn.y > fy) { yarn.y = fy; yarn.vy *= -0.58; yarn.vx *= 0.72; }
+    yarn.vx *= (1 - 0.7 * dt);
+    yarn.spin += yarn.vx * dt * 0.16;
+    yarn.x = clamp(yarn.x, cat.x - SW * 0.6, cat.x + SW * 0.6);
+    if (yarn.life > 1.4) yarn.active = false;
+  }
 
   if (dragging) cat.mode = 'drag';
   else if (cat.mode === 'drag') { cat.mode = 'sit'; cat.idleNext = t + 4; }
@@ -302,8 +327,9 @@ function drawEnvelope(cx, cy) {
 }
 
 function dirtyRect() {
-  let minx = cat.x - SW / 2, maxx = cat.x + SW / 2, miny = cat.y - SH / 2 - 40, maxy = cat.y + SH / 2 + 14;
+  let minx = cat.x - SW * 0.6, maxx = cat.x + SW * 0.6, miny = cat.y - SH / 2 - 40, maxy = cat.y + SH / 2 + 16;
   for (const p of particles) { minx = Math.min(minx, p.x - 16); maxx = Math.max(maxx, p.x + 16); miny = Math.min(miny, p.y - 16); maxy = Math.max(maxy, p.y + 16); }
+  if (yarn.active) { const r = PIXEL * 5; minx = Math.min(minx, yarn.x - r); maxx = Math.max(maxx, yarn.x + r); miny = Math.min(miny, yarn.y - r); maxy = Math.max(maxy, yarn.y + r); }
   return { x: clamp(minx - 10, 0, W), y: clamp(miny - 10, 0, H), w: 0, h: 0, _x2: clamp(maxx + 10, 0, W), _y2: clamp(maxy + 10, 0, H) };
 }
 
@@ -337,6 +363,33 @@ function drawKeyboard(yOff) {
   orect(k2x + (keyW - pawW) / 2, basePawY + (!leftDown ? s * 2 : 0), pawW, pawH, '#e6e6e6', OUT);
 }
 
+// bouncing ball of yarn the cat plays with while scrolling
+function drawYarn() {
+  if (!yarn.active) return;
+  const a = clamp(1 - (yarn.life - 1.0) / 0.4, 0, 1);
+  const r = Math.max(4, PIXEL * 2.6);
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.translate(yarn.x, yarn.y);
+  ctx.rotate(yarn.spin);
+  ctx.lineWidth = Math.max(1, PIXEL * 0.5);
+  ctx.fillStyle = '#f0869c'; ctx.strokeStyle = '#2f2f2e';
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = '#c75f76';
+  ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0, 0, r * 0.45, r, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0, 0, r * 0.82, r * 0.82, Math.PI / 4, -0.4, 2.2); ctx.stroke();
+  ctx.restore();
+  // little dangling tail (unrotated, hangs from the ball)
+  ctx.save();
+  ctx.globalAlpha = a; ctx.strokeStyle = '#c75f76'; ctx.lineWidth = Math.max(1, PIXEL * 0.5);
+  ctx.beginPath(); ctx.moveTo(yarn.x + r * 0.6, yarn.y + r * 0.4);
+  ctx.quadraticCurveTo(yarn.x + r * 1.7, yarn.y + r * 0.8, yarn.x + r * 1.1, yarn.y + r * 1.7);
+  ctx.stroke();
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
 function draw() {
   const d = dirtyRect(); d.w = d._x2 - d.x; d.h = d._y2 - d.y;
   const cx = Math.min(prevDirty.x, d.x), cy = Math.min(prevDirty.y, d.y);
@@ -357,18 +410,24 @@ function draw() {
 
   let flip;
   if (isTyping()) flip = false;            // face forward while typing
+  else if (yarn.active) flip = yarn.x < cat.x;   // turn to watch the yarn
   else if (cat.mode === 'walk') flip = cat.faceLeft;
   else flip = cursor.x < cat.x;
 
+  const boing = cat.boing;
+  const sxk = 1 + boing * Math.sin(cat.boingPhase) * 0.13;   // playful squash & stretch
+  const syk = 1 - boing * Math.sin(cat.boingPhase) * 0.13;
+  const hop = boing * Math.abs(Math.sin(cat.boingPhase)) * PIXEL * 1.6;
   const bob = (cat.mode === 'sit' || cat.mode === 'sleep') ? Math.sin(now() * 3) * (PIXEL * 0.35) : 0;
   ctx.save();
-  ctx.translate(cat.x, cat.y + bob);
-  ctx.scale(flip ? -1 : 1, 1);
+  ctx.translate(cat.x, cat.y + bob - hop);
+  ctx.scale((flip ? -1 : 1) * sxk, syk);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(sheetImg, sx, sy, FW, FH, -SW / 2, -SH / 2, SW, SH);
   ctx.restore();
 
   if (isTyping()) drawKeyboard(bob);
+  drawYarn();
 
   if (cat.bubbleT > 0 && cat.bubble) {
     if (cat.bubble === '\u2709') drawEnvelope(cat.x, cat.y - SH * 0.42);

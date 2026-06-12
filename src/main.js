@@ -155,10 +155,6 @@ function startInputHooks() {
     if (kc === K.Shift || kc === K.ShiftRight) mods.shift = true;
 
     if ((mods.alt && kc === K.F4) || (mods.ctrl && kc === K.W)) { sendStimulus('closewindow'); return; }
-    if (kc === K.ArrowUp) return sendStimulus('arrow', { dir: 'up' });
-    if (kc === K.ArrowDown) return sendStimulus('arrow', { dir: 'down' });
-    if (kc === K.ArrowLeft) return sendStimulus('arrow', { dir: 'left' });
-    if (kc === K.ArrowRight) return sendStimulus('arrow', { dir: 'right' });
     if (!NON_TYPING.has(kc)) sendStimulus('type', {});
   });
   uIOhook.on('keyup', (e) => {
@@ -251,8 +247,13 @@ ipcMain.on('cat-report', (_e, m) => console.log('[cat]', m));
 // lifecycle
 // ---------------------------------------------------------------------------
 if (!app.requestSingleInstanceLock()) {
+  // Another copy is already running. Our launch acts as a toggle: the primary
+  // instance (below) will quit on the 'second-instance' event, so this second
+  // process just exits and the net effect is the cat turning OFF.
   app.quit();
 } else {
+  // Launching the app again while it's running closes it (double-click = toggle).
+  app.on('second-instance', () => { app.quit(); });
   app.whenReady().then(async () => {
     loadSettings();
     createWindow();

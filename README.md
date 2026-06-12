@@ -15,6 +15,20 @@ npm install
 npm start
 ```
 
+### No-terminal launcher (recommended)
+
+Run this once to put a **"Pixel Cat"** shortcut on your Desktop:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\install-shortcut.ps1
+```
+
+Then just **double-click "Pixel Cat"** to turn the cat **ON** (no terminal window
+opens, so you can't close it by accident). **Double-click it again to turn the cat
+OFF.** Under the hood it runs `launch-cat.vbs`, which starts Electron hidden;
+launching a second time triggers the single-instance toggle that quits the running
+cat.
+
 It lives in the **system tray** (look for the kitten icon). Right-click the tray
 icon to **Show/Hide the cat** (`Ctrl+Alt+C`), set **Size** (Small/Medium/Large) and
 **Position** (corner), Pause reactions, Mute sounds, Bring the cat to you,
@@ -34,7 +48,6 @@ opened or fullscreen windows don't cover it.
 | Move the mouse              | turns to face your cursor                        |
 | Type                        | sits at a little **keyboard and taps 2 keys** with its paws (faster as you type faster) |
 | Right-click (anywhere)      | startled jump                                    |
-| Arrow ← / →                 | **walks** that direction (no up/down)            |
 | `Alt+F4` / `Ctrl+W`         | sits up + `bye~`                                 |
 | Open email (Outlook/Gmail…) | meows with a letter ✉ + hearts                   |
 | Leave it alone (~30s)       | lies down and sleeps `z z z`                     |
