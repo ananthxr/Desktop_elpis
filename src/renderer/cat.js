@@ -186,8 +186,8 @@ function onUp(pt, button) {
   if (dragging || moved > 6) { cat.home = { x: cat.x, y: cat.y }; cat.mode = 'sit'; }
   else {
     const t = now(); clickStreak = (t - lastClickAt < 0.5) ? clickStreak + 1 : 1; lastClickAt = t;
-    if (clickStreak >= 4) { react('scared', 0.42, { stars: 7, flee: true, sound: snd.bop }); cat.mood = clamp(cat.mood - 0.12, 0, 1); clickStreak = 0; }
-    else { react('meow', 1.0, { hearts: 5, sound: snd.pet }); cat.mood = clamp(cat.mood + 0.07, 0, 1); }
+    if (clickStreak >= 4) { react('scared', 0.42, { flee: true, sound: snd.bop }); cat.mood = clamp(cat.mood - 0.12, 0, 1); clickStreak = 0; }
+    else { react('meow', 1.0, { hearts: 2 + Math.floor(Math.random() * 2), sound: snd.pet }); cat.mood = clamp(cat.mood + 0.07, 0, 1); }
   }
   pressing = false; dragging = false; setInteractive(inCat(pt.x, pt.y));
 }
