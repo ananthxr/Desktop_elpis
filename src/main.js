@@ -3,9 +3,6 @@ const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, globalShor
 const path = require('path');
 const fs = require('fs');
 
-// Allow WebAudio event sounds without a DOM user-gesture (our clicks are global).
-app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-
 const TOGGLE_ACCEL = 'Control+Alt+C';   // global show/hide shortcut
 
 let win = null;
@@ -13,9 +10,9 @@ let tray = null;
 let paused = false;
 let hidden = false;
 
-// persisted settings (size / corner / mute)
+// persisted settings (size / corner)
 let SETTINGS_PATH = '';
-const settings = { pixel: 4, corner: 'br', muted: false };
+const settings = { pixel: 4, corner: 'br' };
 function loadSettings() {
   SETTINGS_PATH = path.join(app.getPath('userData'), 'pixel-cat-settings.json');
   try { Object.assign(settings, JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8'))); } catch (_) {}
@@ -86,7 +83,7 @@ function createWindow() {
     if (!win || win.isDestroyed()) return;
     const { wa: a, scale } = currentArea();
     win.setBounds({ x: a.x, y: a.y, width: a.width, height: a.height });
-    win.webContents.send('init', { originX: a.x, originY: a.y, width: a.width, height: a.height, scaleFactor: scale, muted: settings.muted, pixel: settings.pixel, corner: settings.corner });
+    win.webContents.send('init', { originX: a.x, originY: a.y, width: a.width, height: a.height, scaleFactor: scale, pixel: settings.pixel, corner: settings.corner });
   };
   win.webContents.on('did-finish-load', pushInit);
   screen.on('display-metrics-changed', pushInit);
@@ -98,7 +95,7 @@ function sendStimulus(type, data) {
   if (paused || !win || win.isDestroyed()) return;
   win.webContents.send('stimulus', { type, data });
 }
-// control messages (size/position/mute/recenter) ignore the pause gate
+// control messages (size/position/recenter) ignore the pause gate
 function sendDirect(type, data) {
   if (win && !win.isDestroyed()) win.webContents.send('stimulus', { type, data });
 }
@@ -207,7 +204,6 @@ function createTray() {
       { type: 'separator' },
       { label: hidden ? 'Show cat' : 'Hide cat', accelerator: TOGGLE_ACCEL, click: () => toggleCat() },
       { label: paused ? 'Resume reactions' : 'Pause reactions', click: () => { paused = !paused; rebuild(); } },
-      { label: settings.muted ? 'Unmute sounds' : 'Mute sounds', click: () => { settings.muted = !settings.muted; saveSettings(); sendDirect('mute', { muted: settings.muted }); rebuild(); } },
       {
         label: 'Size', submenu: [
           { type: 'radio', label: 'Small', checked: settings.pixel === 3, click: () => setSize(3) },

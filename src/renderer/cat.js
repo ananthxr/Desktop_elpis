@@ -74,7 +74,6 @@ const cat = {
   boing: 0, boingPhase: 0,        // playful scroll bounce
   mood: 0.6, lastActivity: 0,
 };
-let muted = false;
 
 // ball of yarn that pops up and bounces while you scroll
 const yarn = { active: false, x: 0, y: 0, vx: 0, vy: 0, spin: 0, life: 0 };
@@ -101,27 +100,6 @@ function spawnStars(n) { for (let i = 0; i < n; i++) { const a = Math.random() *
 function spawnZ() { particles.push({ kind: 'zzz', x: cat.x + SW * 0.2, y: cat.y - SH * 0.28, vx: 9, vy: -20, life: 0, max: 1.6, s: 9 + Math.random() * 5 }); }
 
 // ---------------------------------------------------------------------------
-// sound
-// ---------------------------------------------------------------------------
-let actx = null;
-function ac() { try { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; } catch (_) { return null; } }
-function blip(freq, dur, type = 'sine', vol = 0.05, delay = 0) {
-  if (muted) return; const a = ac(); if (!a) return;
-  const t = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
-  o.type = type; o.frequency.setValueAtTime(freq, t);
-  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.03);
-}
-const snd = {
-  pet: () => { blip(680, 0.12, 'sine', 0.05); blip(900, 0.13, 'sine', 0.04, 0.08); },
-  bop: () => { blip(300, 0.16, 'triangle', 0.06); blip(170, 0.2, 'triangle', 0.05, 0.06); },
-  startled: () => blip(1020, 0.08, 'square', 0.035),
-  happy: () => { blip(523, 0.1, 'sine', 0.045); blip(659, 0.1, 'sine', 0.045, 0.09); blip(784, 0.13, 'sine', 0.04, 0.18); },
-  wave: () => { blip(720, 0.1, 'sine', 0.045); blip(520, 0.13, 'sine', 0.04, 0.1); },
-  email: () => { blip(660, 0.1, 'sine', 0.045); blip(880, 0.1, 'sine', 0.045, 0.09); blip(990, 0.14, 'sine', 0.04, 0.18); },
-};
-
-// ---------------------------------------------------------------------------
 // reactions / clip control
 // ---------------------------------------------------------------------------
 function setClip(name) { if (cat.clipName !== name) { cat.clipName = name; cat.clipT = 0; } }
@@ -131,7 +109,6 @@ function react(clip, dur, opts = {}) {
   setClip(clip); cat.clipT = 0;
   if (opts.hearts) spawnHearts(opts.hearts);
   if (opts.stars) spawnStars(opts.stars);
-  if (opts.sound) opts.sound();
 }
 function startFlee() {
   const dir = (cursor.x > cat.x) ? -1 : 1;
@@ -146,7 +123,7 @@ function baseSpeed() { return 52 * (PIXEL / 4); }
 // ---------------------------------------------------------------------------
 window.catApi.onInit((p) => {
   ORIGIN = { x: p.originX, y: p.originY }; SCALE = p.scaleFactor || 1;
-  muted = !!p.muted; cat.lastActivity = now();
+  cat.lastActivity = now();
   if (p.pixel) applyScale(p.pixel);
   positionCorner(p.corner || 'br');
 });
@@ -158,11 +135,10 @@ window.catApi.onStimulus(({ type, data }) => {
     case 'mouseup': onUp(toLocal(data.x, data.y), data.button); break;
     case 'scroll': onScroll(data); break;
     case 'type': onType(); break;
-    case 'closewindow': cat.lastActivity = now(); wake(); react('sit', 1.4, { bubble: 'bye~', sound: snd.wave }); break;
-    case 'email': cat.lastActivity = now(); wake(); react('meow', 2.4, { hearts: 6, bubble: '\u2709', sound: snd.email }); break;
-    case 'poke': cat.lastActivity = now(); wake(); react('meow', 1.0, { hearts: 4, sound: snd.happy }); break;
+    case 'closewindow': cat.lastActivity = now(); wake(); react('sit', 1.4, { bubble: 'bye~' }); break;
+    case 'email': cat.lastActivity = now(); wake(); react('meow', 2.4, { hearts: 6, bubble: '\u2709' }); break;
+    case 'poke': cat.lastActivity = now(); wake(); react('meow', 1.0, { hearts: 4 }); break;
     case 'recenter': cat.target = { x: W / 2, y: cat.y }; cat.home = { x: W / 2, y: cat.y }; cat.runSpeed = 0; cat.mode = 'walk'; corner = 'free'; break;
-    case 'mute': muted = !!data.muted; break;
     case 'setsize': applyScale(data.pixel); positionCorner(corner === 'free' ? 'br' : corner); break;
     case 'setcorner': positionCorner(data.corner); break;
   }
@@ -177,7 +153,7 @@ function onMove(pt) {
 function onDown(pt, button) {
   wake();
   const onCat = inCat(pt.x, pt.y);
-  if (button === 2) { onCat ? react('meow', 1.0, { hearts: 3, sound: snd.happy }) : react('scared', 0.42, { sound: snd.startled }); return; }
+  if (button === 2) { onCat ? react('meow', 1.0, { hearts: 3 }) : react('scared', 0.42, {}); return; }
   if (onCat) { pressing = true; dragging = false; pressPos = { x: pt.x, y: pt.y }; dragOff = { x: cat.x - pt.x, y: cat.y - pt.y }; setInteractive(true); }
 }
 function onUp(pt, button) {
@@ -186,8 +162,8 @@ function onUp(pt, button) {
   if (dragging || moved > 6) { cat.home = { x: cat.x, y: cat.y }; cat.mode = 'sit'; }
   else {
     const t = now(); clickStreak = (t - lastClickAt < 0.5) ? clickStreak + 1 : 1; lastClickAt = t;
-    if (clickStreak >= 4) { react('scared', 0.42, { flee: true, sound: snd.bop }); cat.mood = clamp(cat.mood - 0.12, 0, 1); clickStreak = 0; }
-    else { react('meow', 1.0, { hearts: 2 + Math.floor(Math.random() * 2), sound: snd.pet }); cat.mood = clamp(cat.mood + 0.07, 0, 1); }
+    if (clickStreak >= 4) { react('scared', 0.42, { flee: true }); cat.mood = clamp(cat.mood - 0.12, 0, 1); clickStreak = 0; }
+    else { react('meow', 1.0, { hearts: 2 + Math.floor(Math.random() * 2) }); cat.mood = clamp(cat.mood + 0.07, 0, 1); }
   }
   pressing = false; dragging = false; setInteractive(inCat(pt.x, pt.y));
 }
